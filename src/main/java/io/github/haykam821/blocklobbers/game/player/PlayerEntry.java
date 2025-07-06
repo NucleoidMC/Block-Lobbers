@@ -125,7 +125,7 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 				player.sendAbilitiesUpdate();
 				VelocityHelper.sendLeapVelocityPacket(player);
 
-				this.playSoundFromPlayer(SoundEvents.ENTITY_HORSE_SADDLE, SoundCategory.PLAYERS, 0.3f, 1.1f);
+				this.playSoundFromPlayer(SoundEvents.ENTITY_HORSE_SADDLE.value(), SoundCategory.PLAYERS, 0.3f, 1.1f);
 				this.updateExperienceBar(player);
 			}
 		} else if (packet instanceof PlayerMoveC2SPacket && player.isOnGround()) {

@@ -69,7 +69,7 @@ public class BlockLobbersMap {
 
 	private void spawn(ServerWorld world, ServerPlayerEntity player, TemplateRegion region) {
 		Vec3d pos = region.getBounds().centerBottom();
-		float yaw = region.getData().getFloat(FACING_KEY);
+		float yaw = region.getData().getFloat(FACING_KEY, 0);
 
 		player.teleport(world, pos.getX(), pos.getY(), pos.getZ(), Set.of(), yaw, 0, true);
 	}
@@ -82,6 +82,6 @@ public class BlockLobbersMap {
 		if (region == null || region.getData() == null) {
 			return 0;
 		}
-		return region.getData().getInt(PRIORITY_KEY);
+		return region.getData().getInt(PRIORITY_KEY, 0);
     }
 }

@@ -41,7 +41,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	private final Set<PlayerEntry> players;
 	private final WinManager winManager;
 
-	private boolean closing;
+	private int ticksUntilClose = -1;
 
 	public BlockLobbersActivePhase(GameSpace gameSpace, ServerWorld world, BlockLobbersMap map, BlockLobbersConfig config) {
 		this.gameSpace = gameSpace;
@@ -106,6 +106,17 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 
 	@Override
 	public void onTick() {
+		// Decrease ticks until game end to zero
+		if (this.isGameEnding()) {
+			if (this.ticksUntilClose == 0) {
+				this.gameSpace.close(GameCloseReason.FINISHED);
+			} else {
+				this.ticksUntilClose -= 1;
+			}
+
+			return;
+		}
+
 		Iterator<PlayerEntry> playerIterator = this.players.iterator();
 		while (playerIterator.hasNext()) {
 			PlayerEntry entry = playerIterator.next();
@@ -116,8 +127,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 
 		// Attempt to determine a winner
 		if (this.winManager.checkForWinner()) {
-			this.closing = true;
-			gameSpace.close(GameCloseReason.FINISHED);
+			this.endGame();
 		}
 	}
 
@@ -207,7 +217,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	}
 
 	private boolean eliminate(PlayerEntry entry, String suffix, boolean remove) {
-		if (this.closing) return false;
+		if (this.isGameEnding()) return false;
 
 		Text message = entry.getEliminatedText(suffix);
 		for (ServerPlayerEntity player : this.gameSpace.getPlayers()) {
@@ -224,5 +234,13 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 
 	public boolean eliminate(PlayerEntry entry, boolean remove) {
 		return this.eliminate(entry, "", remove);
+	}
+
+	private void endGame() {
+		this.ticksUntilClose = this.config.getTicksUntilClose().get(this.world.getRandom());
+	}
+
+	private boolean isGameEnding() {
+		return this.ticksUntilClose >= 0;
 	}
 }

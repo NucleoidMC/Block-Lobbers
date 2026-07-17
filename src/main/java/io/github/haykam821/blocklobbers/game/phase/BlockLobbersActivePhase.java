@@ -3,20 +3,19 @@ package io.github.haykam821.blocklobbers.game.phase;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.level.GameType;
 import io.github.haykam821.blocklobbers.game.BlockLobbersConfig;
 import io.github.haykam821.blocklobbers.game.map.BlockLobbersMap;
 import io.github.haykam821.blocklobbers.game.player.PlayerEntry;
 import io.github.haykam821.blocklobbers.game.player.WinManager;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.GameMode;
 import xyz.nucleoid.plasmid.api.game.GameActivity;
 import xyz.nucleoid.plasmid.api.game.GameCloseReason;
 import xyz.nucleoid.plasmid.api.game.GameSpace;
@@ -35,7 +34,7 @@ import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
 public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEvents.Enable, GameActivityEvents.Tick, GamePlayerEvents.Remove, GamePlayerEvents.Accept, ItemUseEvent, PlayerC2SPacketEvent, PlayerDamageEvent, PlayerDeathEvent {
 	private final GameSpace gameSpace;
-	private final ServerWorld world;
+	private final ServerLevel world;
 	private final BlockLobbersMap map;
 	private final BlockLobbersConfig config;
 	private final Set<PlayerEntry> players;
@@ -43,7 +42,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 
 	private boolean closing;
 
-	public BlockLobbersActivePhase(GameSpace gameSpace, ServerWorld world, BlockLobbersMap map, BlockLobbersConfig config) {
+	public BlockLobbersActivePhase(GameSpace gameSpace, ServerLevel world, BlockLobbersMap map, BlockLobbersConfig config) {
 		this.gameSpace = gameSpace;
 		this.world = world;
 		this.map = map;
@@ -59,7 +58,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 		activity.allow(GameRuleType.BREAK_BLOCKS);
 	}
 
-	public static void open(GameSpace gameSpace, ServerWorld world, BlockLobbersMap map, BlockLobbersConfig config) {
+	public static void open(GameSpace gameSpace, ServerLevel world, BlockLobbersMap map, BlockLobbersConfig config) {
 		gameSpace.setActivity(activity -> {
 			BlockLobbersActivePhase phase = new BlockLobbersActivePhase(gameSpace, world, map, config);
 
@@ -81,7 +80,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 
 	// Listeners
 	@Override
-	public EventResult onBreak(ServerPlayerEntity player, ServerWorld world, BlockPos pos) {
+	public EventResult onBreak(ServerPlayer player, ServerLevel world, BlockPos pos) {
 		PlayerEntry entry = this.getPlayerEntry(player);
 		if (entry != null) {
 			return entry.onBreak(player, world, pos);
@@ -98,7 +97,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 			entry.start();
 		}
 
-		for (ServerPlayerEntity player : this.gameSpace.getPlayers().spectators()) {
+		for (ServerPlayer player : this.gameSpace.getPlayers().spectators()) {
 			this.map.spawnAtWaiting(this.world, player);
 			this.setSpectator(player);
 		}
@@ -122,7 +121,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	}
 
 	@Override
-	public void onRemovePlayer(ServerPlayerEntity player) {
+	public void onRemovePlayer(ServerPlayer player) {
 		PlayerEntry entry = this.getPlayerEntry(player);
 		if (entry != null) {
 			this.eliminate(entry, true);
@@ -137,17 +136,17 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	}
 
 	@Override
-	public ActionResult onUse(ServerPlayerEntity player, Hand hand) {
+	public InteractionResult onUse(ServerPlayer player, InteractionHand hand) {
 		PlayerEntry entry = this.getPlayerEntry(player);
 		if (entry != null) {
 			return entry.onUse(player, hand);
 		}
 
-		return ActionResult.PASS;
+		return InteractionResult.PASS;
 	}
 
 	@Override
-	public EventResult onPacket(ServerPlayerEntity player, Packet<?> packet) {
+	public EventResult onPacket(ServerPlayer player, Packet<?> packet) {
 		PlayerEntry entry = this.getPlayerEntry(player);
 		if (entry != null) {
 			return entry.onPacket(player, packet);
@@ -157,12 +156,12 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	}
 
 	@Override
-	public EventResult onDamage(ServerPlayerEntity player, DamageSource source, float amount) {
+	public EventResult onDamage(ServerPlayer player, DamageSource source, float amount) {
 		return EventResult.DENY;
 	}
 
 	@Override
-	public EventResult onDeath(ServerPlayerEntity player, DamageSource source) {
+	public EventResult onDeath(ServerPlayer player, DamageSource source) {
 		PlayerEntry entry = this.getPlayerEntry(player);
 		if (entry != null) {
 			this.eliminate(entry, true);
@@ -172,7 +171,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	}
 
 	// Getters
-	public ServerWorld getWorld() {
+	public ServerLevel getWorld() {
 		return this.world;
 	}
 
@@ -193,7 +192,7 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 	}
 
 	// Utilities
-	public PlayerEntry getPlayerEntry(ServerPlayerEntity player) {
+	public PlayerEntry getPlayerEntry(ServerPlayer player) {
 		for (PlayerEntry entry : this.players) {
 			if (player == entry.getPlayer()) {
 				return entry;
@@ -202,16 +201,16 @@ public class BlockLobbersActivePhase implements BlockBreakEvent, GameActivityEve
 		return null;
 	}
 
-	private void setSpectator(ServerPlayerEntity player) {
-		player.changeGameMode(GameMode.SPECTATOR);
+	private void setSpectator(ServerPlayer player) {
+		player.setGameMode(GameType.SPECTATOR);
 	}
 
 	private boolean eliminate(PlayerEntry entry, String suffix, boolean remove) {
 		if (this.closing) return false;
 
-		Text message = entry.getEliminatedText(suffix);
-		for (ServerPlayerEntity player : this.gameSpace.getPlayers()) {
-			player.sendMessage(message, false);
+		Component message = entry.getEliminatedText(suffix);
+		for (ServerPlayer player : this.gameSpace.getPlayers()) {
+			player.sendSystemMessage(message, false);
 		}
 
 		if (remove) {

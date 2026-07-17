@@ -3,12 +3,13 @@ package io.github.haykam821.blocklobbers.game.phase;
 import io.github.haykam821.blocklobbers.game.BlockLobbersConfig;
 import io.github.haykam821.blocklobbers.game.map.BlockLobbersMap;
 import io.github.haykam821.blocklobbers.game.map.BlockLobbersMapBuilder;
-import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.world.GameMode;
-import xyz.nucleoid.fantasy.RuntimeWorldConfig;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.level.GameType;
+import xyz.nucleoid.fantasy.RuntimeLevel;
+import xyz.nucleoid.fantasy.RuntimeLevelConfig;
 import xyz.nucleoid.plasmid.api.game.GameActivity;
 import xyz.nucleoid.plasmid.api.game.GameOpenContext;
 import xyz.nucleoid.plasmid.api.game.GameOpenProcedure;
@@ -27,11 +28,11 @@ import xyz.nucleoid.stimuli.event.player.PlayerDeathEvent;
 
 public class BlockLobbersWaitingPhase implements GameActivityEvents.RequestStart, GamePlayerEvents.Accept, PlayerDamageEvent, PlayerDeathEvent {
 	private final GameSpace gameSpace;
-	private final ServerWorld world;
+	private final ServerLevel world;
 	private final BlockLobbersMap map;
 	private final BlockLobbersConfig config;
 
-	public BlockLobbersWaitingPhase(GameSpace gameSpace, ServerWorld world, BlockLobbersMap map, BlockLobbersConfig config) {
+	public BlockLobbersWaitingPhase(GameSpace gameSpace, ServerLevel world, BlockLobbersMap map, BlockLobbersConfig config) {
 		this.gameSpace = gameSpace;
 		this.world = world;
 		this.map = map;
@@ -69,10 +70,10 @@ public class BlockLobbersWaitingPhase implements GameActivityEvents.RequestStart
 		BlockLobbersMapBuilder mapBuilder = new BlockLobbersMapBuilder(config);
 		BlockLobbersMap map = mapBuilder.create(server);
 
-		RuntimeWorldConfig worldConfig = new RuntimeWorldConfig()
+		RuntimeLevelConfig worldConfig = new RuntimeLevelConfig()
 			.setGenerator(map.createGenerator(server));
 
-		return context.openWithWorld(worldConfig, (activity, world) -> {
+		return context.openWithLevel(worldConfig, (activity, world) -> {
 			BlockLobbersWaitingPhase phase = new BlockLobbersWaitingPhase(activity.getGameSpace(), world, map, config);
 			GameWaitingLobby.addTo(activity, config.getPlayerConfig());
 
@@ -97,17 +98,17 @@ public class BlockLobbersWaitingPhase implements GameActivityEvents.RequestStart
 	@Override
 	public JoinAcceptorResult onAcceptPlayers(JoinAcceptor acceptor) {
 		return acceptor.teleport(this.world, this.map.getWaitingSpawnPos()).thenRunForEach(player -> {
-			player.changeGameMode(GameMode.SURVIVAL);
+			player.setGameMode(GameType.SURVIVAL);
 		});
 	}
 
 	@Override
-	public EventResult onDamage(ServerPlayerEntity player, DamageSource source, float amount) {
+	public EventResult onDamage(ServerPlayer player, DamageSource source, float amount) {
 		return EventResult.DENY;
 	}
 
 	@Override
-	public EventResult onDeath(ServerPlayerEntity player, DamageSource source) {
+	public EventResult onDeath(ServerPlayer player, DamageSource source) {
 		this.map.spawnAtWaiting(this.world, player);
 		return EventResult.DENY;
 	}

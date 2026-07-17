@@ -1,9 +1,9 @@
 package io.github.haykam821.blocklobbers.game.lobbable;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World.ExplosionSourceType;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level.ExplosionInteraction;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.Vec3;
 
 public class ExplosiveLobbable extends Lobbable {
 	public ExplosiveLobbable(BlockState state) {
@@ -11,8 +11,8 @@ public class ExplosiveLobbable extends Lobbable {
 	}
 
 	@Override
-	public boolean onCollide(ServerWorld world, LobbableEntity entity, Vec3d pos) {
-		world.createExplosion(entity, pos.getX(), pos.getY(), pos.getZ(), 5, ExplosionSourceType.NONE);
+	public boolean onCollide(ServerLevel world, LobbableEntity entity, Vec3 pos) {
+		world.explode(entity, pos.x(), pos.y(), pos.z(), 5, ExplosionInteraction.NONE);
 		return true;
 	}
 }

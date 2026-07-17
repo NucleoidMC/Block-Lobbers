@@ -2,34 +2,33 @@ package io.github.haykam821.blocklobbers.game.player;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
+import net.minecraft.network.protocol.game.ServerboundPlayerAbilitiesPacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.player.Abilities;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import io.github.haykam821.blocklobbers.BlockLobbers;
 import io.github.haykam821.blocklobbers.game.lobbable.Lobbable;
 import io.github.haykam821.blocklobbers.game.lobbable.LobbableBehavior;
 import io.github.haykam821.blocklobbers.game.lobbable.LobbableEntity;
 import io.github.haykam821.blocklobbers.game.phase.BlockLobbersActivePhase;
-import net.minecraft.block.BlockState;
-import net.minecraft.entity.effect.StatusEffectInstance;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.player.PlayerAbilities;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.c2s.play.PlayerMoveC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdatePlayerAbilitiesC2SPacket;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.text.Text;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.Hand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.GameMode;
-import net.minecraft.world.World;
 import xyz.nucleoid.plasmid.api.util.ItemStackBuilder;
 import xyz.nucleoid.stimuli.event.EventResult;
 import xyz.nucleoid.stimuli.event.block.BlockBreakEvent;
@@ -46,26 +45,26 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 		.setUnbreakable();
 
 	private final BlockLobbersActivePhase phase;
-	private final ServerPlayerEntity player;
+	private final ServerPlayer player;
 	private final List<Lobbable> lobbables = new ArrayList<>(MAX_LOBBABLES);
 
-	public PlayerEntry(BlockLobbersActivePhase phase, ServerPlayerEntity player) {
+	public PlayerEntry(BlockLobbersActivePhase phase, ServerPlayer player) {
 		this.phase = phase;
 		this.player = player;
 	}
 
 	public void start() {
-		this.player.changeGameMode(GameMode.SURVIVAL);
-		this.player.addStatusEffect(new StatusEffectInstance(StatusEffects.GLOWING, StatusEffectInstance.INFINITE, 0, true, false, false));
+		this.player.setGameMode(GameType.SURVIVAL);
+		this.player.addEffect(new MobEffectInstance(MobEffects.GLOWING, MobEffectInstance.INFINITE_DURATION, 0, true, false, false));
 		this.updateHotbar();
 
-		this.player.getAbilities().allowFlying = true;
-		this.player.sendAbilitiesUpdate();
+		this.player.getAbilities().mayfly = true;
+		this.player.onUpdateAbilities();
 	}
 
 	public boolean tick() {
 		// Eliminate players that are out of bounds
-		if (!this.phase.getMap().getBounds().contains(this.player.getBlockPos())) {
+		if (!this.phase.getMap().getBounds().contains(this.player.blockPosition())) {
 			this.phase.eliminate(this, false);
 			return true;
 		}
@@ -75,7 +74,7 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 
 	// Listeners
 	@Override
-	public EventResult onBreak(ServerPlayerEntity player, ServerWorld world, BlockPos pos) {
+	public EventResult onBreak(ServerPlayer player, ServerLevel world, BlockPos pos) {
 		BlockState state = world.getBlockState(pos);
 		if (state.isAir()) return EventResult.PASS;
 
@@ -90,7 +89,7 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 	}
 
 	@Override
-	public ActionResult onUse(ServerPlayerEntity player, Hand hand) {
+	public InteractionResult onUse(ServerPlayer player, InteractionHand hand) {
 		if (!this.lobbables.isEmpty()) {
 			Lobbable lobbable = this.lobbables.get(0);
 
@@ -99,39 +98,39 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 				this.updateHotbar();
 			}
 
-			LobbableEntity entity = new LobbableEntity(BlockLobbers.LOBBABLE_ENTITY_TYPE, player.getWorld(), lobbable);
-			entity.setPos(player.getX(), player.getEyeY() - 0.1, player.getZ());
+			LobbableEntity entity = new LobbableEntity(BlockLobbers.LOBBABLE_ENTITY_TYPE, player.level(), lobbable);
+			entity.setPosRaw(player.getX(), player.getEyeY() - 0.1, player.getZ());
 			entity.setOwner(player);
 
-			entity.setVelocity(player, player.getPitch(), player.getYaw(), 0, 0.8f, 0);
-			entity.velocityModified = true;
+			entity.shootFromRotation(player, player.getXRot(), player.getYRot(), 0, 0.8f, 0);
+			entity.hurtMarked = true;
 			
-			player.getWorld().spawnEntity(entity);
+			player.level().addFreshEntity(entity);
 		}
 
-		return ActionResult.FAIL;
+		return InteractionResult.FAIL;
 	}
 
 	@Override
-	public EventResult onPacket(ServerPlayerEntity player, Packet<?> packet) {
-		if (packet instanceof UpdatePlayerAbilitiesC2SPacket) {
-			UpdatePlayerAbilitiesC2SPacket abilitiesPacket = (UpdatePlayerAbilitiesC2SPacket) packet;
-			PlayerAbilities abilities = player.getAbilities();
+	public EventResult onPacket(ServerPlayer player, Packet<?> packet) {
+		if (packet instanceof ServerboundPlayerAbilitiesPacket) {
+			ServerboundPlayerAbilitiesPacket abilitiesPacket = (ServerboundPlayerAbilitiesPacket) packet;
+			Abilities abilities = player.getAbilities();
 
-			if (abilitiesPacket.isFlying() && abilities.allowFlying) {
-				abilities.allowFlying = false;
+			if (abilitiesPacket.isFlying() && abilities.mayfly) {
+				abilities.mayfly = false;
 				abilities.flying = false;
 
-				player.sendAbilitiesUpdate();
+				player.onUpdateAbilities();
 				VelocityHelper.sendLeapVelocityPacket(player);
 
-				this.playSoundFromPlayer(SoundEvents.ENTITY_HORSE_SADDLE.value(), SoundCategory.PLAYERS, 0.3f, 1.1f);
+				this.playSoundFromPlayer(SoundEvents.HORSE_SADDLE.value(), SoundSource.PLAYERS, 0.3f, 1.1f);
 				this.updateExperienceBar(player);
 			}
-		} else if (packet instanceof PlayerMoveC2SPacket && player.isOnGround()) {
-			player.getAbilities().allowFlying = true;
+		} else if (packet instanceof ServerboundMovePlayerPacket && player.onGround()) {
+			player.getAbilities().mayfly = true;
 
-			player.sendAbilitiesUpdate();
+			player.onUpdateAbilities();
 			this.updateExperienceBar(player);
 		}
 
@@ -140,40 +139,40 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 
 	// Utilities
 	public void updateHotbar() {
-		Inventory inventory = this.player.getInventory();
+		Container inventory = this.player.getInventory();
 
 		for (int slot = HOTBAR_START_SLOT; slot <= HOTBAR_END_SLOT; slot += 1) {
 			if (slot == HOTBAR_START_SLOT) {
-				inventory.setStack(HOTBAR_START_SLOT, PICKAXE.build());
+				inventory.setItem(HOTBAR_START_SLOT, PICKAXE.build());
 			} else if (lobbables.size() > HOTBAR_END_SLOT - slot) {
 				Lobbable lobbable = lobbables.get(HOTBAR_END_SLOT - slot);
-				inventory.setStack(slot, lobbable.createStack(slot == HOTBAR_END_SLOT));
+				inventory.setItem(slot, lobbable.createStack(slot == HOTBAR_END_SLOT));
 			} else {
-				inventory.setStack(slot, ItemStack.EMPTY);
+				inventory.setItem(slot, ItemStack.EMPTY);
 			}
 		}
 	}
 
-	private void playSoundFromPlayer(SoundEvent event, SoundCategory category, float volume, float pitch) {
-		World world = this.player.getWorld();
-		world.playSoundFromEntity(null, this.player, event, category, volume, pitch);
+	private void playSoundFromPlayer(SoundEvent event, SoundSource category, float volume, float pitch) {
+		Level world = this.player.level();
+		world.playSound(null, this.player, event, category, volume, pitch);
 	}
 
-	public void updateExperienceBar(ServerPlayerEntity player) {
-		player.experienceProgress = player.getAbilities().allowFlying ? 1 : 0;
-		player.setExperienceLevel(0);
+	public void updateExperienceBar(ServerPlayer player) {
+		player.experienceProgress = player.getAbilities().mayfly ? 1 : 0;
+		player.setExperienceLevels(0);
 	}
 
 	private void removeTopLobbable() {
 		this.lobbables.remove(0);
 	}
 
-	public Text getWinText() {
-		return Text.translatable("text.blocklobbers.win", this.getName()).formatted(Formatting.GOLD);
+	public Component getWinText() {
+		return Component.translatable("text.blocklobbers.win", this.getName()).withStyle(ChatFormatting.GOLD);
 	}
 
-	public Text getEliminatedText(String suffix) {
-		return Text.translatable("text.blocklobbers.eliminated" + suffix, this.getName()).formatted(Formatting.RED);
+	public Component getEliminatedText(String suffix) {
+		return Component.translatable("text.blocklobbers.eliminated" + suffix, this.getName()).withStyle(ChatFormatting.RED);
 	}
 
 	// Getters
@@ -181,11 +180,11 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 		return this.phase;
 	}
 
-	public ServerPlayerEntity getPlayer() {
+	public ServerPlayer getPlayer() {
 		return this.player;
 	}
 
-	public Text getName() {
+	public Component getName() {
 		return this.player.getDisplayName();
 	}
 }

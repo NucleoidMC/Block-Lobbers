@@ -1,8 +1,8 @@
 package io.github.haykam821.blocklobbers.game.player;
 
 import io.github.haykam821.blocklobbers.game.phase.BlockLobbersActivePhase;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 
 public class WinManager {
 	private final BlockLobbersActivePhase phase;
@@ -13,8 +13,8 @@ public class WinManager {
 		this.singleplayer = singleplayer;
 	}
 
-	private Text getNoWinnersText() {
-		return Text.translatable("text.blocklobbers.no_winners").formatted(Formatting.GOLD);
+	private Component getNoWinnersText() {
+		return Component.translatable("text.blocklobbers.no_winners").withStyle(ChatFormatting.GOLD);
 	}
 
 	public boolean checkForWinner() {

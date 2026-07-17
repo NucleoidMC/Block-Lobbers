@@ -3,32 +3,33 @@ package io.github.haykam821.blocklobbers.game.lobbable;
 import java.util.List;
 import java.util.function.Consumer;
 
+import eu.pb4.polymer.virtualentity.api.data.EntityData;
+import net.fabricmc.fabric.api.networking.v1.context.PacketContext;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundSetPassengersPacket;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.network.syncher.SynchedEntityData.DataValue;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.VoxelShape;
 import eu.pb4.polymer.core.api.entity.PolymerEntity;
 import eu.pb4.polymer.virtualentity.api.ElementHolder;
 import eu.pb4.polymer.virtualentity.api.VirtualEntityUtils;
 import eu.pb4.polymer.virtualentity.api.attachment.EntityAttachment;
 import eu.pb4.polymer.virtualentity.api.elements.BlockDisplayElement;
 import eu.pb4.polymer.virtualentity.api.elements.MobAnchorElement;
-import eu.pb4.polymer.virtualentity.api.tracker.EntityTrackedData;
 import it.unimi.dsi.fastutil.ints.IntList;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.data.DataTracker;
-import net.minecraft.entity.data.DataTracker.SerializedEntry;
-import net.minecraft.entity.decoration.ArmorStandEntity;
-import net.minecraft.entity.projectile.ProjectileEntity;
-import net.minecraft.network.packet.Packet;
-import net.minecraft.network.packet.s2c.play.EntityPassengersSetS2CPacket;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.util.shape.VoxelShape;
-import net.minecraft.world.World;
-import xyz.nucleoid.packettweaker.PacketContext;
 
-public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
-	private static final Vec3d ANCHOR_OFFSET = new Vec3d(-0.5d, 0, -0.5d);
+public class LobbableEntity extends Projectile implements PolymerEntity {
+	private static final Vec3 ANCHOR_OFFSET = new Vec3(-0.5d, 0, -0.5d);
 
 	private final Lobbable lobbable;
 
@@ -36,18 +37,18 @@ public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
 	private final EntityAttachment attachment;
 	private final MobAnchorElement rideAnchor = new MobAnchorElement();
 
-	public LobbableEntity(EntityType<? extends LobbableEntity> entityType, World world, Lobbable lobbable) {
+	public LobbableEntity(EntityType<? extends LobbableEntity> entityType, Level world, Lobbable lobbable) {
 		super(entityType, world);
 		this.lobbable = lobbable;
 
 		this.holder = new ElementHolder() {
 			@Override
-			protected void notifyElementsOfPositionUpdate(Vec3d newPos, Vec3d delta) {
+			protected void notifyElementsOfPositionUpdate(Vec3 newPos, Vec3 delta) {
 				LobbableEntity.this.rideAnchor.notifyMove(this.currentPos, newPos, delta);
 			}
 
 			@Override
-			public Vec3d getPos() {
+			public Vec3 getPos() {
 				return this.getAttachment().getPos();
 			}
 		};
@@ -55,7 +56,7 @@ public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
 		rideAnchor.setOffset(ANCHOR_OFFSET);
 		this.holder.addElement(rideAnchor);
 
-		BlockDisplayElement blockDisplay = new BlockDisplayElement(lobbable.getBlock().getDefaultState());
+		BlockDisplayElement blockDisplay = new BlockDisplayElement(lobbable.getBlock().defaultBlockState());
 		blockDisplay.setOffset(ANCHOR_OFFSET);
 		blockDisplay.ignorePositionUpdates();
 		this.holder.addElement(blockDisplay);
@@ -65,31 +66,31 @@ public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
 		this.attachment = new EntityAttachment(this.holder, this, false);
 	}
 
-	public LobbableEntity(EntityType<? extends LobbableEntity> entityType, World world) {
-		this(entityType, world, new Lobbable(Blocks.AIR.getDefaultState()));
+	public LobbableEntity(EntityType<? extends LobbableEntity> entityType, Level world) {
+		this(entityType, world, new Lobbable(Blocks.AIR.defaultBlockState()));
 	}
 
 	protected boolean onBlockHit(VoxelShape shape) {
-		if (!this.getWorld().isClient()) {
-			ServerWorld world = (ServerWorld) this.getWorld();
-			return this.lobbable.onCollide(world, this, this.getPos());
+		if (!this.level().isClientSide()) {
+			ServerLevel world = (ServerLevel) this.level();
+			return this.lobbable.onCollide(world, this, this.position());
 		}
 
 		return false;
 	}
 
 	protected boolean onEntityHit(Entity entity) {
-		if (!this.getWorld().isClient()) {
-			ServerWorld world = (ServerWorld) this.getWorld();
-			return this.lobbable.onCollide(world, this, entity.getEyePos());
+		if (!this.level().isClientSide()) {
+			ServerLevel world = (ServerLevel) this.level();
+			return this.lobbable.onCollide(world, this, entity.getEyePosition());
 		}
 
 		return false;
 	}
 
 	@Override
-	protected boolean canHit(Entity entity) {
-		return super.canHit(entity) && (this.getOwner() != entity || this.age > 5);
+	protected boolean canHitEntity(Entity entity) {
+		return super.canHitEntity(entity) && (this.getOwner() != entity || this.tickCount > 5);
 	}
 
 	@Override
@@ -97,27 +98,27 @@ public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
 		super.tick();
 
 		// Update position
-		Vec3d velocity = this.getVelocity();
+		Vec3 velocity = this.getDeltaMovement();
 
-		double x = this.getX() + velocity.getX();
-		double y = this.getY() + velocity.getY();
-		double z = this.getZ() + velocity.getZ();
+		double x = this.getX() + velocity.x();
+		double y = this.getY() + velocity.y();
+		double z = this.getZ() + velocity.z();
 
-		this.setPosition(x, y, z);
+		this.setPos(x, y, z);
 
 		// Update velocity
-		velocity = velocity.multiply(0.99);
+		velocity = velocity.scale(0.99);
 
-		if (!this.hasNoGravity()) {
-			velocity = velocity.subtract(0, this.getGravity(), 0);
+		if (!this.isNoGravity()) {
+			velocity = velocity.subtract(0, this.getDefaultGravity(), 0);
 		}
 
-		this.setVelocity(velocity);
+		this.setDeltaMovement(velocity);
 
 		this.updateRotation();
-		this.tickBlockCollision();
+		this.applyEffectsFromBlocks();
 
-		World world = this.getWorld();
+		Level world = this.level();
 
 		// Handle collisions
 		for (VoxelShape shape : world.getBlockCollisions(this, this.getBoundingBox())) {
@@ -127,7 +128,7 @@ public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
 			}
 		}
 
-		for (Entity entity : world.getOtherEntities(this, this.getBoundingBox(), this::canHit)) {
+		for (Entity entity : world.getEntities(this, this.getBoundingBox(), this::canHitEntity)) {
 			if (this.onEntityHit(entity)) {
 				this.discard();
 				return;
@@ -147,31 +148,31 @@ public class LobbableEntity extends ProjectileEntity implements PolymerEntity {
 
 	@Override
 	public EntityType<?> getPolymerEntityType(PacketContext context) {
-		return EntityType.ARMOR_STAND;
+		return EntityTypes.ARMOR_STAND;
 	}
 
 	@Override
 	public void onEntityPacketSent(Consumer<Packet<?>> consumer, Packet<?> packet) {
-		if (packet instanceof EntityPassengersSetS2CPacket passengersSetS2CPacket) {
-			IntList passengers = IntList.of(passengersSetS2CPacket.getPassengerIds());
-			packet = VirtualEntityUtils.createRidePacket(this.rideAnchor.getEntityId(), passengers);
+		if (packet instanceof ClientboundSetPassengersPacket passengersSetS2CPacket) {
+			IntList passengers = IntList.of(passengersSetS2CPacket.getPassengers());
+			packet = VirtualEntityUtils.createClientboundSetPassengersPacket(this.rideAnchor.getEntityId(), passengers);
 		}
 
 		consumer.accept(packet);
 	}
 	
 	@Override
-	public void modifyRawTrackedData(List<SerializedEntry<?>> data, ServerPlayerEntity player, boolean initial) {
-		data.add(DataTracker.SerializedEntry.of(EntityTrackedData.FLAGS, (byte) (1 << EntityTrackedData.INVISIBLE_FLAG_INDEX)));
-		data.add(DataTracker.SerializedEntry.of(ArmorStandEntity.ARMOR_STAND_FLAGS, (byte) ArmorStandEntity.MARKER_FLAG));
+	public void modifyRawTrackedData(List<DataValue<?>> data, ServerPlayer player, boolean initial) {
+		data.add(SynchedEntityData.DataValue.create(EntityData.FLAGS, (byte) (1 << EntityData.INVISIBLE_FLAG_INDEX)));
+		data.add(SynchedEntityData.DataValue.create(ArmorStand.DATA_CLIENT_FLAGS, (byte) ArmorStand.CLIENT_FLAG_MARKER));
 	}
 
 	@Override
-	protected void initDataTracker(DataTracker.Builder builder) {
+	protected void defineSynchedData(SynchedEntityData.Builder builder) {
 		return;
 	}
 
-	protected double getGravity() {
+	protected double getDefaultGravity() {
 		return 0.05;
 	}
 }

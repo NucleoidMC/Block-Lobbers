@@ -1,14 +1,14 @@
 package io.github.haykam821.blocklobbers.game.player;
 
 import java.util.Optional;
-
-import net.minecraft.entity.Entity;
-import net.minecraft.network.packet.s2c.play.ExplosionS2CPacket;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.Holder;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.protocol.game.ClientboundExplodePacket;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.random.WeightedList;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 
 public class VelocityHelper {
 	private static final double LEAP_MULTIPLIER = 0.9;
@@ -16,34 +16,34 @@ public class VelocityHelper {
 	private static final double LEAP_MIN_Y = 0.15;
 	private static final double STEALTHY_LEAP_MIN_Y = 0;
 
-	public static void setVelocity(Entity entity, Vec3d velocity) {
-		if (entity instanceof ServerPlayerEntity) {
-			ServerPlayerEntity player = (ServerPlayerEntity) entity;
+	public static void setVelocity(Entity entity, Vec3 velocity) {
+		if (entity instanceof ServerPlayer) {
+			ServerPlayer player = (ServerPlayer) entity;
 			VelocityHelper.sendVelocityPacket(player, velocity);
 		} else {
-			entity.setVelocity(velocity);
+			entity.setDeltaMovement(velocity);
 		}
 	}
 
-	public static void sendVelocityPacket(ServerPlayerEntity player, Vec3d velocity) {
-		player.networkHandler.sendPacket(new ExplosionS2CPacket(Vec3d.ZERO, Optional.of(velocity), ParticleTypes.EXPLOSION, RegistryEntry.of(SoundEvents.INTENTIONALLY_EMPTY)));
+	public static void sendVelocityPacket(ServerPlayer player, Vec3 velocity) {
+		player.connection.send(new ClientboundExplodePacket(Vec3.ZERO, 0, 0, Optional.of(velocity), ParticleTypes.EXPLOSION, Holder.direct(SoundEvents.EMPTY), WeightedList.of()));
 	}
 
-	public static void sendLeapVelocityPacket(ServerPlayerEntity player) {
+	public static void sendLeapVelocityPacket(ServerPlayer player) {
 		VelocityHelper.sendVelocityPacket(player, VelocityHelper.getLeapVelocity(player));
 	}
 
-	public static Vec3d getLeapVelocity(ServerPlayerEntity player) {
-		Vec3d facing = Vec3d
-			.fromPolar(player.getPitch(), player.getYaw())
-			.multiply(LEAP_MULTIPLIER);
+	public static Vec3 getLeapVelocity(ServerPlayer player) {
+		Vec3 facing = Vec3
+			.directionFromRotation(player.getXRot(), player.getYRot())
+			.scale(LEAP_MULTIPLIER);
 
-		double y = Math.max(VelocityHelper.getLeapMinY(player), facing.getY());
-		return new Vec3d(facing.getX(), y, facing.getZ());
+		double y = Math.max(VelocityHelper.getLeapMinY(player), facing.y());
+		return new Vec3(facing.x(), y, facing.z());
 	}
 
-	private static double getLeapMinY(ServerPlayerEntity player) {
-		if (player.isSneaking()) {
+	private static double getLeapMinY(ServerPlayer player) {
+		if (player.isShiftKeyDown()) {
 			return STEALTHY_LEAP_MIN_Y;
 		} else {
 			return LEAP_MIN_Y;

@@ -8,14 +8,14 @@ import com.google.common.base.Preconditions;
 
 import io.github.haykam821.blocklobbers.game.player.PlayerEntry;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.gen.chunk.ChunkGenerator;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.chunk.ChunkGenerator;
+import net.minecraft.world.phys.Vec3;
 import xyz.nucleoid.map_templates.BlockBounds;
 import xyz.nucleoid.map_templates.MapTemplate;
 import xyz.nucleoid.map_templates.TemplateRegion;
-import xyz.nucleoid.plasmid.api.game.world.generator.TemplateChunkGenerator;
+import xyz.nucleoid.plasmid.api.game.level.generator.TemplateChunkGenerator;
 
 public class BlockLobbersMap {
 	public static final String SPAWN_KEY = "spawn";
@@ -49,7 +49,7 @@ public class BlockLobbersMap {
 		return this.template.getBounds();
 	}
 
-	public void spawn(ServerWorld world, Set<PlayerEntry> players) {
+	public void spawn(ServerLevel world, Set<PlayerEntry> players) {
 		int index = 0;
 		for (PlayerEntry entry : players) {
 			TemplateRegion region = this.spawns.get(index % this.spawns.size());
@@ -59,19 +59,19 @@ public class BlockLobbersMap {
 		}
 	}
 
-	public Vec3d getWaitingSpawnPos() {
+	public Vec3 getWaitingSpawnPos() {
 		return this.waitingSpawn.getBounds().centerBottom();
 	}
 
-	public void spawnAtWaiting(ServerWorld world, ServerPlayerEntity player) {
+	public void spawnAtWaiting(ServerLevel world, ServerPlayer player) {
 		this.spawn(world, player, this.waitingSpawn);
 	}
 
-	private void spawn(ServerWorld world, ServerPlayerEntity player, TemplateRegion region) {
-		Vec3d pos = region.getBounds().centerBottom();
-		float yaw = region.getData().getFloat(FACING_KEY, 0);
+	private void spawn(ServerLevel world, ServerPlayer player, TemplateRegion region) {
+		Vec3 pos = region.getBounds().centerBottom();
+		float yaw = region.getData().getFloatOr(FACING_KEY, 0);
 
-		player.teleport(world, pos.getX(), pos.getY(), pos.getZ(), Set.of(), yaw, 0, true);
+		player.teleportTo(world, pos.x(), pos.y(), pos.z(), Set.of(), yaw, 0, true);
 	}
 
 	public ChunkGenerator createGenerator(MinecraftServer server) {
@@ -82,6 +82,6 @@ public class BlockLobbersMap {
 		if (region == null || region.getData() == null) {
 			return 0;
 		}
-		return region.getData().getInt(PRIORITY_KEY, 0);
+		return region.getData().getIntOr(PRIORITY_KEY, 0);
     }
 }

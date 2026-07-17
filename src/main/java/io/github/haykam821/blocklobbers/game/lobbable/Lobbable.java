@@ -1,16 +1,16 @@
 package io.github.haykam821.blocklobbers.game.lobbable;
 
 import io.github.haykam821.blocklobbers.game.player.VelocityHelper;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.WorldEvents;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.LevelEvent;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import xyz.nucleoid.plasmid.api.util.ItemStackBuilder;
 
 public class Lobbable {
@@ -28,27 +28,27 @@ public class Lobbable {
 	}
 
 	public int getRawId() {
-		return Block.getRawIdFromState(this.state);
+		return Block.getId(this.state);
 	}
 
 	public ItemStack createStack(boolean top) {
 		ItemStackBuilder builder = ItemStackBuilder.of(this.state.getBlock());
 
 		if (top) {
-			builder.set(DataComponentTypes.ENCHANTMENT_GLINT_OVERRIDE, true);
+			builder.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
 		}
 
 		return builder.build();
 	}
 
-	private Vec3d getKnockbackVelocity(Vec3d lobbableVelocity, Entity affected) {
-		Vec3d velocity = lobbableVelocity
+	private Vec3 getKnockbackVelocity(Vec3 lobbableVelocity, Entity affected) {
+		Vec3 velocity = lobbableVelocity
 			.normalize()
-			.multiply(KNOCKBACK_STRENGTH);
+			.scale(KNOCKBACK_STRENGTH);
 
-		if (affected.isOnGround()) {
-			double y = Math.max(0, velocity.getY() * -2);
-			velocity = new Vec3d(velocity.getX(), y, velocity.getY());
+		if (affected.onGround()) {
+			double y = Math.max(0, velocity.y() * -2);
+			velocity = new Vec3(velocity.x(), y, velocity.y());
 		}
 
 		return velocity;
@@ -57,14 +57,14 @@ public class Lobbable {
 	/**
 	 * @return whether the lobbable entity should be discarded after the collision
 	 */
-	public boolean onCollide(ServerWorld world, LobbableEntity entity, Vec3d pos) {
-		Box affectedBox = entity.getBoundingBox().expand(AFFECTED_RANGE);
-		for (Entity affected : world.getOtherEntities(entity, affectedBox)) {
-			Vec3d knockbackVelocity = this.getKnockbackVelocity(entity.getVelocity(), affected);
+	public boolean onCollide(ServerLevel world, LobbableEntity entity, Vec3 pos) {
+		AABB affectedBox = entity.getBoundingBox().inflate(AFFECTED_RANGE);
+		for (Entity affected : world.getEntities(entity, affectedBox)) {
+			Vec3 knockbackVelocity = this.getKnockbackVelocity(entity.getDeltaMovement(), affected);
 			VelocityHelper.setVelocity(affected, knockbackVelocity);
 		}
 
-		world.syncWorldEvent(WorldEvents.BLOCK_BROKEN, BlockPos.ofFloored(pos), this.getRawId());
+		world.levelEvent(LevelEvent.PARTICLES_DESTROY_BLOCK, BlockPos.containing(pos), this.getRawId());
 		return true;
 	}
 }

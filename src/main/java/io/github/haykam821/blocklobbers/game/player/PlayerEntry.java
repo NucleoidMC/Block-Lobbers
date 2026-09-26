@@ -103,7 +103,7 @@ public class PlayerEntry implements BlockBreakEvent, ItemUseEvent, PlayerC2SPack
 			entity.setOwner(player);
 
 			entity.shootFromRotation(player, player.getXRot(), player.getYRot(), 0, 0.8f, 0);
-			entity.hurtMarked = true;
+			entity.syncVelocity = true;
 			
 			player.level().addFreshEntity(entity);
 		}

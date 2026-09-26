@@ -26,7 +26,7 @@ public class VelocityHelper {
 	}
 
 	public static void sendVelocityPacket(ServerPlayer player, Vec3 velocity) {
-		player.connection.send(new ClientboundExplodePacket(Vec3.ZERO, 0, 0, Optional.of(velocity), ParticleTypes.EXPLOSION, Holder.direct(SoundEvents.EMPTY), WeightedList.of()));
+		player.connection.send(new ClientboundExplodePacket(Vec3.ZERO, 0, 0, Optional.of(velocity), ParticleTypes.EXPLOSION, Holder.direct(SoundEvents.EMPTY), WeightedList.of(), false));
 	}
 
 	public static void sendLeapVelocityPacket(ServerPlayer player) {
